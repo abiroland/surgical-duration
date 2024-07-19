@@ -1,0 +1,257 @@
+---
+title: "Project_St615"
+author: "Roland Abi & Prasanna Damaraju"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+bibliography: references.bib
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(broom)
+library(ggpubr)
+library(bbplot)
+library(viridis)
+library(lbutils)
+library(olsrr)
+library(GGally)
+library(fastDummies)
+library(kableExtra)
+library(car)
+
+source("../FinalProject/data_cleaning.R")
+source("../FinalProject/exploratory_analysis.R")
+source("../FinalProject/model.R")
+source("../FinalProject/model2.R")
+source("../FinalProject/logistic.R")
+```
+
+## **Influence of patients characteristics on surgical duration for patients undergoing colorectal surgery**
+
+### Introduction
+
+Operating Room (OR) efficiency is a complex factor that is substantiated by hospital resources and administration. Operating Rooms significantly account for total hospital expenditure and income. With an estimated 312.9 million global annual surgery adequate appropriation of OR resources could enhance OR effectiveness and support identifying patients with potential for prolonged surgical duration @yeo2022 @lam2022 @hosseini. Historically, hospital experience and access to advance care have positively skewed surgical outcomes. However, risk of complication from surgical duration could be further confounded by the variability in patients characteristics and type of surgical procedures and techniques required @reames2015 @lam2022.
+
+Evidence suggests that surgical duration has a potential for negative surgical outcome with a few reporting a relationship between longer operative duration and surgical site infection @reames2015. Longer surgical duration some of which resulted in post surgical mortality had known high risk co-morbidities such as obesity and hypertension, specifically, this complication rates quadrupled when progressing in operations lasting less than 30 minutes to procedures lasting over 6hours @rambachan2013. According to the American Society of Clinical Oncology (ASCO), Colorectal Cancer (CC) is the third most diagnosed cancer with an estimated 1,880,725 global cases and 151,030 cases in the United States respectively @colorect2012. Incidence of colorectal cancer dropped about 2% in older adults due to screening and early diagnosis. However recent studies have shown a 1.5% rise in incidence among younger people below 50years @colorect2012.
+
+Various methods have been proposed in estimating surgical duration including commercial surgical scheduling systems Cerner, Epic. These methods of estimating surgical duration have been designed to function based on moving average of previous cases, surgeon and procedure codes. @hosseini developed a stepwise regression model to estimate surgical duration using procedure category. In their model, there observe that surgical duration vary across clinical specialty and concluded that further improvement can be attained through inclusion of additional clinical factors @hosseini.
+
+@lam2022 on the other had estimated surgical duration using a Categorical Gradient Boosting (CatBoost) based Machine Learning model. There found procedure code, 1st-3rd year moving averages, scheduled hour, RVU_Total_Casesmax, patient class, location, primary physician ID and number of procedures to have influenced surgical duration. Researchers at Havard Medical school while using machine learning models K-nearest Neighbor, Random Forest and Artificial Neural Network found younger age (\<45 years), ASA score and BMI (\>40kg/ m\^2) were significantly associated with surgical operative times and concluded that low BMI (\<40 kg/m2) and male gender decreased the probability of a longer operative time @yeo2022.
+
+This rise in incidence of colorectal cancer have been attributed to obesity, diabetes, and vitamin D deficiency @guraya2019. Despite this rise in incidence, surgery remains the main curative therapy for CC @guraya2019. The outcome of which is influence by several characteristics such as gender, age, American Society of Anesthesiologists (ASA) status and presence of co-morbidities @osler2011. Regardless of this characteristics, surgical durations have been accused of influencing surgical outcomes. This study therefore seeks to determine the influence of patients characteristics in determining surgical durations for patients having colorectal surgery.
+
+### Data section
+
+This project will utilize a prospective cohort study dataset from a research, titled "seasonal and vitamin D status do not effect probability for surgical site infection after colorectal surgery @turan2015. The dataset contains 2919 observations and 14 variables. For this project, nine variables was extracted (Age, BMI, Chronic Renal Failure, Duration of surgery, Gender, ASAstatus, Vitamin D, Race, Diabetes and Season). Using both the skimr and visdat package, missingness was computed and variables such as vitamin D which had more missing observation was dropped from from further consideration. Also the variable season (Fall, Summer, Spring, Winter) as it was outside the scope of our focus. Summary statistics to determine the average age of patients and average surgical duration was conducted. Further analysis involved the exploration of how variables interact with one another using plots.
+
+### Proposed method of analysis
+
+#### Data description
+
+-   **Age:** Patients age
+
+-   **Gender:** Gender (Male, Female)
+
+-   **Diabetes:** Presence of diabetes (Yes, No)
+
+-   **ASAStatus:** American Society of Anesthesiologist (Normal patient, Mild disease, Severe disease) communicate a patient's pre-anesthesia medical co-morbidities. The classification system alone does not predict the perioperative risks, but used with other factors (eg, type of surgery, frailty, level of deconditioning), it can be helpful in predicting perioperative risks.
+
+-   **BMI:** Body Mass Index (kg/m$^2$): measures body fat
+
+-   **Race:** (Others, Black, White)
+
+-   **ChronicRenalFailure:** (Yes, No)
+
+-   **DurationSurgery:** Time (hours) taken between point when patient the patient is wheeled into the OR and when the patient is wheeled out of the OR.
+
+#### Initial model
+
+The initial model considered was: $E(SurgicalDuration) = B_0 + 0.00154 * BMI$
+
+The initial model containing only BMI was based on BMI being more positively correlated with surgical duration as compared to other variables upon observation of the scatter plot matrix.
+
+```{r, echo=FALSE, fig.align='center'}
+sctmat
+```
+
+And was built upon the assumption that it was linear, the disturbance term were normally distributed, the errors were uncorrelated, and the variance were constant. This assumptions were checked, and were found to be valid.
+
+```{r, echo=FALSE, fig.align='center'}
+replt_grp
+```
+
+Further models were developed to accommodate other variables such as age, gender, race, presence of diabetes, chronic renal failure and ASAstatus. This models are the interaction model, the full model and the reduced model. During the development of this models, one of the model developed which isn't included, here violated the assumption of constant variance when we included the categorical ASAstatus (normal patient, mild_disease and severe diseased patient). Weighted least square regression was developed to correct for this violation but failed. What we did was the create a new variable called health status (1=health (normal patients), 0 = unhealthy (mild_disease and severe diseased patient)).
+
+The interaction model was checked for multicollinearity and majority of the interacted terms were found to be highly correlated with one another.
+
+\newpage
+
+```{r, echo=FALSE}
+tidy_int %>%
+kbl(caption = "Interaction model") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+```{r, echo=FALSE}
+vif_interaction %>%
+  kbl(caption = "VIFs for interaction model") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+```{r, echo=FALSE}
+glance_int %>%
+  kbl(caption = "summaries for interaction model") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+\newpage
+
+The full model meanwhile was developed after removing the interaction terms and the output is as shown below:
+
+```{r, echo=FALSE}
+tidy7 %>%
+kbl(caption = "Full model output") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+multicollinearity diagnostics were also carried out on the full model and output is shown below:
+
+```{r, echo=FALSE}
+vif_full %>%
+  kbl(caption = "VIFs for full model") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+```{r, echo=FALSE, out.width="50%"}
+glance7 %>%
+  kbl(caption = "summaries for full model") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+\newpage
+
+The final model was built based on values that had extremely low vifs and had smaller pvalues in the full model.
+
+```{r, echo=FALSE}
+tidymodint %>%
+  kbl(caption = "Reduced model output") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+The summaries for the reduced model is given as follows:
+
+```{r, echo=FALSE}
+glanceint %>%
+  kbl(caption = "Summaries for Reduced model") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+Multicollinearity diagnostics was also carried for the reduced model
+
+```{r, echo=FALSE}
+vif_int %>%
+  kbl(caption = "Vifs for Reduced model") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+\newpage
+
+Finally, we compared the BICs for the interaction, full and reduced model
+
+```{r, echo=FALSE}
+tibble(
+  BIC_interaction = glance_int$BIC,
+  BIC_full = glance7$BIC,
+  BIC_reduced = glanceint$BIC
+) %>%
+  kbl(caption = "Model comparison") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+***hypothesis*** $H_0 : E(reduced) = B_{BMI} + B_{healthy}$ $H_a : E(fullmodel) = B_{BMI} + B_{Age} + B_{female} + B_{Black} + B_{White} + B_{Diabetes} + B_{crf} + B_{healthy}$
+
+```{r, echo=FALSE}
+tibble("Teststatistic" = Fstat, "p-value" = Pvalue) %>%
+  kbl(caption = "hypothesis test output") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+```
+
+Conclusion: Given the test statistic `Fstat` with a associated p-value = `Pvalue`, if BMI, and ASAstatus healthy were not included in the model given Age, gender, diabetes, and chronic renal failure were included, it would be only slightly likely that we would have observed a test statistic of our magnitude or larger. Consequently we will not reject and conclude that there is not sufficient statistical evidence to conclude the full model does a better job of explaining the variability in surgical duration.
+
+Based upon comparison of the BICs and extra sum of sqaures test on the reduced and full model, the reduced model will do a better job of explaining the variability in surgical duration Hence the equation for the fitted model is given as: $E(SurgicalDuration)$ =
+$1.65$ + $0.00697*B_{BMI}$-$0.780*B_{healthy}$
+
+\newpage
+
+#### Residual analysis
+
+```{r, echo=FALSE, fig.align='center'}
+redplt
+```
+
+From the residual plot of our final model, everything looks good except that the assumption of constant variance was violated which means the standard errors of the estimates will be inaccurate and results of confidence interval will be violated.
+
+We attempted to fit a weighted least regression model to correct for this violation, but arrived at the same conclusion:
+
+```{r, echo=FALSE, fig.align='center', fig.cap="Weighted least squares plot"}
+wls_resid
+```
+
+#### Proposed model
+
+Considering the models we built had violated the assumption of constant variance, we proposed a logistic regression model. This was done by splitting the response variable (i.e surgical duration) into two groups, based on its mean. Time (hours) above the mean spent longer time, those below the mean spent lesser time.
+
+```{r, echo=FALSE}
+tidy9 %>%
+  kbl(caption = "Logistic model output") %>%
+  kable_classic(full_width = F, html_font = "Garamond", font_size = 17)
+  
+```
+
+
+```{r, echo=FALSE, fig.align='center'}
+logiplt
+```
+
+#### Result
+
+The final model (reduced model) is meant to be used to address the question of what patient characteristics could potentially increase or decrease the time a patient undergoing colorectal cancer surgery spent in the operating room.
+
+Based on the final model (reduced model) $B_{BMI}$ implies on average an increase in BMI will result in a 0.00697hrs increase in surgical duration in the event that the patient is healthy. $B_{healthy}$ implies that healthy patient will experience a 0.780hrs decrease in surgical duration as compared to an unhealthy patient given their BMI remains constant
+
+#### Conclusion
+
+The result of our analysis showed that the average duration for patient undergoing colorectal surgery was 3.6hrs 55.4% of female patients were healthy while 50.7% of the male patients had severe diseases. There exist about a 4hrs difference between black or white patients who are between 40-60years old. Majority of the patients with confirmed cases of diabetes were in surgery for close to 15hrs as with patients with severe disease ASA status. We observed that at normal weight, male and female had similar surgical duration. However as their body mass index changes so also do their surgical duration with male patients experiencing longer surgical duration when overweight or obese. (see further plots). The results obtained in this study are in agreement with those obtained by @yeo2022.
+
+#### Limitations
+
+During analysis, we observed that they appeared to be a curved relationship between the fitted values of surgical duration, age and gender however as more variables were included in the model that relationship faded out. I was expecting a strong effect between interactions such as BMI and ASAstatus, Age and Diabetes on surgical duration, but this didn't materialized. I believe they could be other explanations for this phenomenon such as cancer stage, type of surgery, physician experience, and co-morbidities, surgery complexity etc; this data however was unavailable. Advanced methods such as machine learning could help develop more efficient models. 
+
+#### Group Contribution
+
+-   Roland Abi: project idea, literature review, data cleaning, data analysis, report.
+
+-   Prasanna Damaraju:
+
+#### Futher plots
+
+```{r, echo=FALSE, out.width="60%", fig.align='center'}
+plt1
+```
+
+```{r, echo=FALSE, out.width="60%", fig.align='center'}
+plt6
+```
+
+```{r, echo=FALSE, out.width="60%", fig.align='center'}
+plt7
+```
+
+### References
